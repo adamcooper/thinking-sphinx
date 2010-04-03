@@ -99,11 +99,12 @@ module ThinkingSphinx
     end
     
     def set_source_sql(source, offset, delta = false)
-      source.sql_query        = to_sql(:offset => offset, :delta => delta).gsub(/\n/, ' ')
-      source.sql_query_range  = to_sql_query_range(:delta => delta)
-      source.sql_query_info   = to_sql_query_info(offset)
+      source.sql_query           = to_sql(:offset => offset, :delta => delta).gsub(/\n/, ' ')
+      source.sql_query_range     = to_sql_query_range(:delta => delta)
+      source.sql_query_info      = to_sql_query_info(offset)
       
-      source.sql_query_pre += send(!delta ? :sql_query_pre_for_core : :sql_query_pre_for_delta)
+      source.sql_query_pre      += send(!delta ? :sql_query_pre_for_core : :sql_query_pre_for_delta)
+      source.sql_query_killlist  = send(!delta ? :sql_query_killlist_for_core : :sql_query_killlist_for_delta, :offset => offset)
       
       if @index.local_options[:group_concat_max_len]
         source.sql_query_pre << "SET SESSION group_concat_max_len = #{@index.local_options[:group_concat_max_len]}"

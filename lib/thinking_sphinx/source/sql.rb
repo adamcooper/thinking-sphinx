@@ -58,11 +58,15 @@ GROUP BY #{ sql_group_clause }
         "#{quote_column(@model.primary_key_for_sphinx)} = (($id - #{offset}) / #{ThinkingSphinx.context.indexed_models.size})"
       end
 
-      def sql_select_clause(offset)
+      def sql_select_id_clause(offset)
         unique_id_expr = ThinkingSphinx.unique_id_expression(offset)
+        "#{@model.quoted_table_name}.#{quote_column(@model.primary_key_for_sphinx)} #{unique_id_expr} AS #{quote_column(@model.primary_key_for_sphinx)} "
+      end
+
+      def sql_select_clause(offset)
 
         (
-          ["#{@model.quoted_table_name}.#{quote_column(@model.primary_key_for_sphinx)} #{unique_id_expr} AS #{quote_column(@model.primary_key_for_sphinx)} "] + 
+          [sql_select_id_clause(offset)] + 
           @fields.collect     { |field|     field.to_select_sql     } +
           @attributes.collect { |attribute| attribute.to_select_sql }
         ).compact.join(", ")
@@ -106,7 +110,24 @@ GROUP BY #{ sql_group_clause }
       end
 
       def sql_query_pre_for_delta
-        [""]
+        []
+      end
+
+      def sql_query_killlist_for_core(options = {})
+        nil
+      end
+      
+      def sql_query_killlist_for_delta(options = {})
+        if self.delta? && !@index.delta_object.killlist_clause(@model).blank?
+          sql = "SELECT "
+          sql << "SQL_NO_CACHE " if adapter.sphinx_identifier == "mysql"          
+          sql << sql_select_id_clause(options[:offset]) 
+          sql << "FROM #{@model.quoted_table_name} WHERE "
+          sql << @index.delta_object.killlist_clause(@model)
+          sql
+        else
+          nil
+        end
       end
 
       def quote_column(column)

@@ -38,6 +38,10 @@ module ThinkingSphinx
         " = #{adapter.boolean(toggled)}"
       end
       
+      def killlist_clause(model)
+        ""
+      end
+      
       private
       
       def update_delta_indexes(model)
