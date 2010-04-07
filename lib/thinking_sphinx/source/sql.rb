@@ -105,12 +105,20 @@ GROUP BY #{ sql_group_clause }
         if self.delta? && !@index.delta_object.reset_query(@model).blank?
           [@index.delta_object.reset_query(@model)]
         else
-          []
+          [""]
         end
       end
 
       def sql_query_pre_for_delta
         []
+      end
+
+      def to_sql_query_killlist(options)
+        if options[:delta]
+          sql_query_killlist_for_delta(options)
+        else
+          sql_query_killlist_for_core(options)
+        end
       end
 
       def sql_query_killlist_for_core(options = {})

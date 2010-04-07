@@ -104,7 +104,7 @@ module ThinkingSphinx
       source.sql_query_info      = to_sql_query_info(offset)
       
       source.sql_query_pre      += send(!delta ? :sql_query_pre_for_core : :sql_query_pre_for_delta)
-      source.sql_query_killlist  = send(!delta ? :sql_query_killlist_for_core : :sql_query_killlist_for_delta, :offset => offset)
+      source.sql_query_killlist  = to_sql_query_killlist(:offset => offset, :delta => delta) if source.sql_query_killlist.nil?
       
       if @index.local_options[:group_concat_max_len]
         source.sql_query_pre << "SET SESSION group_concat_max_len = #{@index.local_options[:group_concat_max_len]}"
