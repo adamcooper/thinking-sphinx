@@ -200,17 +200,28 @@ http://freelancing-god.github.com/ts/en/upgrading.html
 
     if Gem::Version.new(Gem::RubyGemsVersion) >= Gem::Version.new('1.2.0') then
       s.add_runtime_dependency(%q<activerecord>, [">= 1.15.6"])
-      s.add_runtime_dependency(%q<riddle>, [">= 1.0.10"])
-      s.add_runtime_dependency(%q<after_commit>, [">= 1.0.6"])
+# <<<<<<< HEAD
+#       s.add_runtime_dependency(%q<riddle>, [">= 1.0.10"])
+#       s.add_runtime_dependency(%q<after_commit>, [">= 1.0.6"])
+#     else
+#       s.add_dependency(%q<activerecord>, [">= 1.15.6"])
+#       s.add_dependency(%q<riddle>, [">= 1.0.10"])
+#       s.add_dependency(%q<after_commit>, [">= 1.0.6"])
+#     end
+#   else
+#     s.add_dependency(%q<activerecord>, [">= 1.15.6"])
+#     s.add_dependency(%q<riddle>, [">= 1.0.10"])
+#     s.add_dependency(%q<after_commit>, [">= 1.0.6"])
+# =======
+      s.add_runtime_dependency(%q<riddle>, [">= 1.0.8"])
     else
       s.add_dependency(%q<activerecord>, [">= 1.15.6"])
-      s.add_dependency(%q<riddle>, [">= 1.0.10"])
-      s.add_dependency(%q<after_commit>, [">= 1.0.6"])
+      s.add_dependency(%q<riddle>, [">= 1.0.8"])
     end
   else
     s.add_dependency(%q<activerecord>, [">= 1.15.6"])
-    s.add_dependency(%q<riddle>, [">= 1.0.10"])
-    s.add_dependency(%q<after_commit>, [">= 1.0.6"])
+    s.add_dependency(%q<riddle>, [">= 1.0.8"])
+# >>>>>>> 309bb923c826b9e1c825443e265ed52280238fa4
   end
 end
 
