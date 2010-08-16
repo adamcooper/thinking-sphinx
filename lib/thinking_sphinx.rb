@@ -1,7 +1,5 @@
 require 'active_record'
-require 'after_commit'
 require 'yaml'
-require 'cgi'
 require 'riddle'
 
 require 'thinking_sphinx/auto_version'
@@ -19,8 +17,8 @@ require 'thinking_sphinx/class_facet'
 require 'thinking_sphinx/facet_search'
 require 'thinking_sphinx/field'
 require 'thinking_sphinx/index'
+require 'thinking_sphinx/join'
 require 'thinking_sphinx/source'
-require 'thinking_sphinx/rails_additions'
 require 'thinking_sphinx/search'
 require 'thinking_sphinx/search_methods'
 require 'thinking_sphinx/deltas'
@@ -29,11 +27,7 @@ require 'thinking_sphinx/adapters/abstract_adapter'
 require 'thinking_sphinx/adapters/mysql_adapter'
 require 'thinking_sphinx/adapters/postgresql_adapter'
 
-ActiveRecord::Base.send(:include, ThinkingSphinx::ActiveRecord)
-
-Merb::Plugins.add_rakefiles(
-  File.join(File.dirname(__FILE__), "thinking_sphinx", "tasks")
-) if defined?(Merb)
+require 'thinking_sphinx/railtie'
 
 module ThinkingSphinx
   # A ConnectionError will get thrown when a connection to Sphinx can't be
@@ -78,7 +72,7 @@ module ThinkingSphinx
     
     @@context
   end
-
+  
   def self.reset_context!
     @@sphinx_mutex.synchronize do
       @@context = nil
@@ -215,6 +209,8 @@ module ThinkingSphinx
 
   def self.pid_active?(pid)
     !!Process.kill(0, pid.to_i)
+  rescue Errno::EPERM => e
+    true
   rescue Exception => e
     false
   end

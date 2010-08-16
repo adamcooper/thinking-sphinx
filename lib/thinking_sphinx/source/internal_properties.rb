@@ -5,7 +5,6 @@ module ThinkingSphinx
         add_internal_attribute :sphinx_internal_id, nil,
           @model.primary_key_for_sphinx.to_sym
         add_internal_attribute :class_crc,          :integer, crc_column, true
-        add_internal_attribute :subclass_crcs,      :multi,   subclasses_to_s
         add_internal_attribute :sphinx_deleted,     :integer, "0"
 
         add_internal_facet :class_crc
@@ -38,7 +37,7 @@ module ThinkingSphinx
       end
 
       def subclasses_to_s
-        "'" + (@model.send(:subclasses).collect { |klass|
+        "'" + (@model.send(:descendants).collect { |klass|
           klass.to_crc32.to_s
         } << @model.to_crc32.to_s).join(",") + "'"
       end

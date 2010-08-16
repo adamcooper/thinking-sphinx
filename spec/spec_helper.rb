@@ -7,26 +7,33 @@ require 'rubygems'
 require 'fileutils'
 require 'ginger'
 require 'jeweler'
+require "rspec"
 
-require "lib/thinking_sphinx"
+require "#{File.dirname(__FILE__)}/../lib/thinking_sphinx"
 
 require 'will_paginate'
 
-require 'spec/sphinx_helper'
+require "#{File.dirname(__FILE__)}/sphinx_helper"
 
 ActiveRecord::Base.logger = Logger.new(StringIO.new)
 
-Spec::Runner.configure do |config|
+Rspec.configure do |config|
   %w( tmp tmp/config tmp/log tmp/db ).each do |path|
     FileUtils.mkdir_p "#{Dir.pwd}/#{path}"
   end
   
-  Kernel.const_set :RAILS_ROOT, "#{Dir.pwd}/tmp" unless defined?(RAILS_ROOT)
+  module ::Rails
+    def self.root
+      "#{Dir.pwd}/tmp"
+    end
+  end
   
   sphinx = SphinxHelper.new
   sphinx.setup_mysql
   
-  require 'spec/fixtures/models'
+  ActiveRecord::Base.send(:include, ThinkingSphinx::ActiveRecord)
+  
+  require "#{File.dirname(__FILE__)}/fixtures/models"
   ThinkingSphinx.context.define_indexes
   
   config.before :all do

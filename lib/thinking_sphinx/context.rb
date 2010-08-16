@@ -1,11 +1,17 @@
 class ThinkingSphinx::Context
   attr_reader :indexed_models
   
-  def initialize
+  def initialize(*models)
     @indexed_models = []
   end
   
   def prepare
+    ThinkingSphinx::Configuration.instance.indexed_models.each do |model|
+      add_indexed_model model
+    end
+    
+    return unless indexed_models.empty?
+    
     load_models
     add_indexed_models
   end
@@ -34,7 +40,7 @@ class ThinkingSphinx::Context
   private
   
   def add_indexed_models
-    Object.subclasses_of(ActiveRecord::Base).each do |klass|
+    ActiveRecord::Base.descendants.each do |klass|
       add_indexed_model klass if klass.has_sphinx_indexes?
     end
   end
@@ -47,12 +53,12 @@ class ThinkingSphinx::Context
     ThinkingSphinx::Configuration.instance.model_directories.each do |base|
       Dir["#{base}**/*.rb"].each do |file|
         model_name = file.gsub(/^#{base}([\w_\/\\]+)\.rb/, '\1')
-      
+        
         next if model_name.nil?
-        next if ::ActiveRecord::Base.send(:subclasses).detect { |model|
-          model.name == model_name
+        next if ::ActiveRecord::Base.send(:descendants).detect { |model|
+          model.name == model_name.camelize
         }
-      
+        
         begin
           model_name.camelize.constantize
         rescue LoadError
