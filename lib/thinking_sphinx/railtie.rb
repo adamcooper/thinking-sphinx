@@ -5,8 +5,15 @@ module ThinkingSphinx
   class Railtie < Rails::Railtie
 
     initializer "thinking_sphinx.active_record" do
-      if defined?(ActiveRecord)
-        ::ActiveRecord::Base.send(:include, ThinkingSphinx::ActiveRecord)
+      ActiveSupport.on_load :active_record do
+        include ThinkingSphinx::ActiveRecord
+      end
+    end
+
+    initializer "thinking_sphinx.action_controller" do
+      ActiveSupport.on_load :action_controller do
+        require 'thinking_sphinx/action_controller'
+        include ThinkingSphinx::ActionController
       end
     end
 

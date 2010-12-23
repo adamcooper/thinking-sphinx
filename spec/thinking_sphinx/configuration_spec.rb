@@ -107,6 +107,8 @@ describe ThinkingSphinx::Configuration do
         config.app_root = "/here/somewhere"
       end
       ThinkingSphinx::Configuration.instance.app_root.should == "/here/somewhere"
+      
+      ThinkingSphinx::Configuration.instance.reset
     end
   end
 
@@ -123,9 +125,9 @@ describe ThinkingSphinx::Configuration do
       }
 
       open("#{Rails.root}/config/sphinx.yml", "w") do |f|
-        f.write  YAML.dump(@settings)
+        f.write YAML.dump(@settings)
       end
-
+      
       ThinkingSphinx::Configuration.instance.send(:parse_config)
       ThinkingSphinx::Configuration.instance.bin_path.should match(/\/$/)
 
@@ -186,7 +188,7 @@ describe ThinkingSphinx::Configuration do
       config.source_options.delete option.to_sym
     end
     
-    config.source_options[:sql_query_pre] = nil  
+    config.source_options[:sql_query_pre] = []  
   end
   
   it "should not blow away delta or utf options if sql pre is specified in config" do
@@ -200,7 +202,7 @@ describe ThinkingSphinx::Configuration do
     file.should match(/sql_query_pre = a pre query\n\s*sql_query_pre = UPDATE `\w+` SET `delta` = 0 WHERE `delta` = 1/im)
     file.should match(/sql_query_pre = a pre query\n\s*sql_query_pre = \n/im)
     
-    config.source_options[:sql_query_pre] = nil
+    config.source_options[:sql_query_pre] = []
   end
 
   it "should set any explicit prefixed or infixed fields" do
@@ -228,6 +230,7 @@ describe ThinkingSphinx::Configuration do
       @config.address     = 'domain.url'
       @config.port        = 3333
       @config.configuration.searchd.max_matches = 100
+      @config.timeout = 1
     end
     
     it "should return an instance of Riddle::Client" do
@@ -244,6 +247,10 @@ describe ThinkingSphinx::Configuration do
     
     it "should use the configuration max matches" do
       @config.client.max_matches.should == 100
+    end
+
+    it "should use the configuration timeout" do
+      @config.client.timeout.should == 1
     end
   end
   

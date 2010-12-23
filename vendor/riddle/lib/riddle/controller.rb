@@ -12,7 +12,7 @@ module Riddle
     end
     
     def sphinx_version
-      `#{indexer} 2>&1`[/^Sphinx (\d\.\d\.\d)/, 1]
+      `#{indexer} 2>&1`[/^Sphinx (\d+\.\d+(\.\d+|(\-id64)?\-beta))/, 1]
     rescue
       nil
     end
@@ -21,7 +21,7 @@ module Riddle
       options = indexes.last.is_a?(Hash) ? indexes.pop : {}
       indexes << '--all' if indexes.empty?
       
-      cmd = "#{indexer} --config '#{@path}' #{indexes.join(' ')}"
+      cmd = "#{indexer} --config \"#{@path}\" #{indexes.join(' ')}"
       cmd << " --rotate" if running?
       options[:verbose] ? system(cmd) : `#{cmd}`
     end
@@ -29,7 +29,7 @@ module Riddle
     def start
       return if running?
       
-      cmd = "#{searchd} --pidfile --config '#{@path}'"
+      cmd = "#{searchd} --pidfile --config \"#{@path}\""
       
       if RUBY_PLATFORM =~ /mswin/
         system("start /B #{cmd} 1> NUL 2>&1")
@@ -45,10 +45,19 @@ module Riddle
     end
     
     def stop
-      return unless running?
-      Process.kill('SIGTERM', pid.to_i)
-    rescue Errno::EINVAL
-      Process.kill('SIGKILL', pid.to_i)
+      return true unless running?
+      
+      stop_flag = 'stopwait'
+      stop_flag = 'stop' if Riddle.loaded_version.split('.').first == '0'
+      cmd = %(#{searchd} --pidfile --config "#{@path}" --#{stop_flag})
+      
+      if RUBY_PLATFORM =~ /mswin/
+        system("start /B #{cmd} 1> NUL 2>&1")
+      else
+        `#{cmd}`
+      end
+    ensure
+      return !running?
     end
     
     def pid

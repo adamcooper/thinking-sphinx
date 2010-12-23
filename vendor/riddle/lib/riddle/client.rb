@@ -5,6 +5,7 @@ require 'riddle/client/response'
 module Riddle
   class VersionError < StandardError;  end
   class ResponseError < StandardError; end
+  class OutOfBoundsError < StandardError; end
   
   # This class was heavily based on the existing Client API by Dmytro Shteflyuk
   # and Alexy Kovyrin. Their code worked fine, I just wanted something a bit
@@ -30,22 +31,24 @@ module Riddle
   #
   class Client
     Commands = {
-      :search   => 0, # SEARCHD_COMMAND_SEARCH
-      :excerpt  => 1, # SEARCHD_COMMAND_EXCERPT
-      :update   => 2, # SEARCHD_COMMAND_UPDATE
-      :keywords => 3, # SEARCHD_COMMAND_KEYWORDS
-      :persist  => 4, # SEARCHD_COMMAND_PERSIST
-      :status   => 5, # SEARCHD_COMMAND_STATUS
-      :query    => 6  # SEARCHD_COMMAND_QUERY
+      :search     => 0, # SEARCHD_COMMAND_SEARCH
+      :excerpt    => 1, # SEARCHD_COMMAND_EXCERPT
+      :update     => 2, # SEARCHD_COMMAND_UPDATE
+      :keywords   => 3, # SEARCHD_COMMAND_KEYWORDS
+      :persist    => 4, # SEARCHD_COMMAND_PERSIST
+      :status     => 5, # SEARCHD_COMMAND_STATUS
+      :query      => 6, # SEARCHD_COMMAND_QUERY
+      :flushattrs => 7  # SEARCHD_COMMAND_FLUSHATTRS
     }
     
     Versions = {
-      :search   => 0x113, # VER_COMMAND_SEARCH
-      :excerpt  => 0x100, # VER_COMMAND_EXCERPT
-      :update   => 0x101, # VER_COMMAND_UPDATE
-      :keywords => 0x100, # VER_COMMAND_KEYWORDS
-      :status   => 0x100, # VER_COMMAND_STATUS
-      :query    => 0x100  # VER_COMMAND_QUERY
+      :search     => 0x113, # VER_COMMAND_SEARCH
+      :excerpt    => 0x100, # VER_COMMAND_EXCERPT
+      :update     => 0x101, # VER_COMMAND_UPDATE
+      :keywords   => 0x100, # VER_COMMAND_KEYWORDS
+      :status     => 0x100, # VER_COMMAND_STATUS
+      :query      => 0x100, # VER_COMMAND_QUERY
+      :flushattrs => 0x100  # VER_COMMAND_FLUSHATTRS
     }
     
     Statuses = {
@@ -72,7 +75,9 @@ module Riddle
       :wordcount      => 3, # SPH_RANK_WORDCOUNT
       :proximity      => 4, # SPH_RANK_PROXIMITY
       :match_any      => 5, # SPH_RANK_MATCHANY
-      :fieldmask      => 6  # SPH_RANK_FIELDMASK
+      :fieldmask      => 6, # SPH_RANK_FIELDMASK
+      :sph04          => 7, # SPH_RANK_SPH04
+      :total          => 8  # SPH_RANK_TOTAL
     }
     
     SortModes = {
@@ -91,6 +96,7 @@ module Riddle
       :bool       => 4, # SPH_ATTR_BOOL
       :float      => 5, # SPH_ATTR_FLOAT
       :bigint     => 6, # SPH_ATTR_BIGINT
+      :string     => 7, # SPH_ATTR_STRING
       :multi      => 0x40000000 # SPH_ATTR_MULTI
     }
     
@@ -109,7 +115,7 @@ module Riddle
       :float_range  => 2  # SPH_FILTER_FLOATRANGE
     }
     
-    attr_accessor :server, :port, :offset, :limit, :max_matches,
+    attr_accessor :servers, :port, :offset, :limit, :max_matches,
       :match_mode, :sort_mode, :sort_by, :weights, :id_range, :filters,
       :group_by, :group_function, :group_clause, :group_distinct, :cut_off,
       :retry_count, :retry_delay, :anchor, :index_weights, :rank_mode,
@@ -128,11 +134,11 @@ module Riddle
     # Can instantiate with a specific server and port - otherwise it assumes
     # defaults of localhost and 3312 respectively. All other settings can be
     # accessed and changed via the attribute accessors.
-    def initialize(server=nil, port=nil)
+    def initialize(servers=nil, port=nil)
       Riddle.version_warning
       
-      @server = server || "localhost"
-      @port   = port   || 9312
+      @servers = Array(servers || "localhost").shuffle
+      @port   = port     || 9312
       @socket = nil
       
       reset
@@ -171,13 +177,24 @@ module Riddle
       @select         = "*"
     end
     
+    # The searchd server to query.  Servers are removed from @server after a
+    # Timeout::Error is hit to allow for fail-over.
+    def server
+      @servers.first
+    end
+
+    # Backwards compatible writer to the @servers array.
+    def server=(server)
+      @servers = server.to_a
+    end
+
     # Set the geo-anchor point - with the names of the attributes that contain
     # the latitude and longitude (in radians), and the reference position.
     # Note that for geocoding to work properly, you must also set
     # match_mode to :extended. To sort results by distance, you will
-    # need to set sort_mode to '@geodist asc' for example. Sphinx
-    # expects latitude and longitude to be returned from you SQL source
-    # in radians.
+    # need to set sort_by to '@geodist asc', and sort_mode to extended (as an
+    # example). Sphinx expects latitude and longitude to be returned from you
+    # SQL source in radians.
     #
     # Example:
     #   client.set_anchor('lat', -0.6591741, 'long', 2.530770)
@@ -356,14 +373,22 @@ module Riddle
     # 3. Pass the documents' text to +excerpts+ for marking up of matched terms.
     #
     def excerpts(options = {})
-      options[:index]           ||= '*'
-      options[:before_match]    ||= '<span class="match">'
-      options[:after_match]     ||= '</span>'
-      options[:chunk_separator] ||= ' &#8230; ' # ellipsis
-      options[:limit]           ||= 256
-      options[:around]          ||= 5
-      options[:exact_phrase]    ||= false
-      options[:single_passage]  ||= false
+      options[:index]            ||= '*'
+      options[:before_match]     ||= '<span class="match">'
+      options[:after_match]      ||= '</span>'
+      options[:chunk_separator]  ||= ' &#8230; ' # ellipsis
+      options[:limit]            ||= 256
+      options[:limit_passages]   ||= 0
+      options[:limit_words]      ||= 0
+      options[:around]           ||= 5
+      options[:exact_phrase]     ||= false
+      options[:single_passage]   ||= false
+      options[:query_mode]       ||= false
+      options[:force_all_words]  ||= false
+      options[:start_passage_id] ||= 1
+      options[:load_files]       ||= false
+      options[:html_strip_mode]  ||= 'index'
+      options[:allow_empty]      ||= false
       
       response = Response.new request(:excerpt, excerpts_message(options))
       
@@ -425,6 +450,14 @@ module Riddle
       end
     end
     
+    def flush_attributes
+      response = Response.new request(
+        :flushattrs, Message.new
+      )
+      
+      response.next_int
+    end
+    
     def add_override(attribute, type, values)
       @overrides[attribute] = {:type => type, :values => values}
     end
@@ -453,9 +486,18 @@ module Riddle
       else
         begin
           Timeout.timeout(@timeout) { @socket = initialise_connection }
-        rescue Timeout::Error
-          raise Riddle::ConnectionError,
-            "Connection to #{@server} on #{@port} timed out after #{@timeout} seconds"
+        rescue Timeout::Error, Riddle::ConnectionError => e
+          failed_servers ||= []
+          failed_servers << servers.shift
+          retry if !servers.empty?
+
+          case e
+          when Timeout::Error
+            raise Riddle::ConnectionError,
+              "Connection to #{failed_servers.inspect} on #{@port} timed out after #{@timeout} seconds"
+          else
+            raise e
+          end
         end
       end
       
@@ -477,11 +519,13 @@ module Riddle
       if @socket.nil? || @socket.closed?
         @socket = nil
         open_socket
-      end
-      begin
+        begin
+          yield @socket
+        ensure
+          close_socket
+        end
+      else
         yield @socket
-      ensure
-        close_socket
       end
     end
     
@@ -508,13 +552,15 @@ module Riddle
           self.connection.call(self)
         elsif self.class.connection
           self.class.connection.call(self)
+        elsif server.index('/') == 0
+          UNIXSocket.new server
         else
-          TCPSocket.new @server, @port
+          TCPSocket.new server, @port
         end
       rescue Errno::ECONNREFUSED => e
         retry if (tries += 1) < 5
         raise Riddle::ConnectionError,
-          "Connection to #{@server} on #{@port} failed. #{e.message}"
+          "Connection to #{server} on #{@port} failed. #{e.message}"
       end
       
       socket
@@ -577,7 +623,9 @@ module Riddle
         puts response[4, length]
         response[4 + length, response.length - 4 - length]
       when Statuses[:error], Statuses[:retry]
-        raise ResponseError, "searchd error (status: #{status}): #{response[4, response.length - 4]}"
+        message = response[4, response.length - 4]
+        klass = message[/out of bounds/] ? OutOfBoundsError : ResponseError
+        raise klass, "searchd error (status: #{status}): #{message}"
       else
         raise ResponseError, "Unknown searchd error (status: #{status})"
       end
@@ -678,13 +726,7 @@ module Riddle
     def excerpts_message(options)
       message = Message.new
       
-      flags = 1
-      flags |= 2  if options[:exact_phrase]
-      flags |= 4  if options[:single_passage]
-      flags |= 8  if options[:use_boundaries]
-      flags |= 16 if options[:weight_order]
-      
-      message.append [0, flags].pack('N2') # 0 = mode
+      message.append [0, excerpt_flags(options)].pack('N2') # 0 = mode
       message.append_string options[:index]
       message.append_string options[:words]
       
@@ -735,9 +777,24 @@ module Riddle
         is_multi ? response.next_float_array    : response.next_float
       when AttributeTypes[:bigint]
         is_multi ? response.next_64bit_int_arry : response.next_64bit_int
+      when AttributeTypes[:string]
+        is_multi ? response.next_array          : response.next
       else
         is_multi ? response.next_int_array      : response.next_int
       end
+    end
+    
+    def excerpt_flags(options)
+      flags = 1
+      flags |= 2   if options[:exact_phrase]
+      flags |= 4   if options[:single_passage]
+      flags |= 8   if options[:use_boundaries]
+      flags |= 16  if options[:weight_order]
+      flags |= 32  if options[:query_mode]
+      flags |= 64  if options[:force_all_words]
+      flags |= 128 if options[:load_files]
+      flags |= 256 if options[:allow_empty]
+      flags
     end
   end
 end

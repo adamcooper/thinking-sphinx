@@ -111,6 +111,7 @@ module ThinkingSphinx
       clause = adapter.crc(clause)                          if @crc
       clause = adapter.concatenate(clause, separator)       if concat_ws?
       clause = adapter.group_concatenate(clause, separator) if is_many?
+      clause = adapter.downcase(clause)                     if insensitive?
       
       "#{clause} AS #{quote_column(unique_name)}"
     end
@@ -223,7 +224,7 @@ module ThinkingSphinx
       end_assoc  = end_association_for_mva
       raise "Could not determine SQL for MVA" if base_assoc.nil?
       
-      relation = Table(base_assoc.table)
+      relation = Arel::Table.new(base_assoc.table)
       
       association_joins.each do |join|
         relation = relation.join(join.relation, Arel::OuterJoin).
@@ -379,6 +380,10 @@ block:
       else
         value
       end
+    end
+    
+    def insensitive?
+      @sortable == :insensitive
     end
   end
 end

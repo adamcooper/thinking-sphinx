@@ -1,6 +1,7 @@
 require 'thinking_sphinx/active_record/attribute_updates'
 require 'thinking_sphinx/active_record/delta'
 require 'thinking_sphinx/active_record/has_many_association'
+require 'thinking_sphinx/active_record/log_subscriber'
 require 'thinking_sphinx/active_record/scopes'
 
 module ThinkingSphinx
@@ -308,6 +309,10 @@ module ThinkingSphinx
       end
     end
     
+    attr_accessor :excerpts
+    attr_accessor :sphinx_attributes
+    attr_accessor :matching_fields
+    
     def in_index?(suffix)
       self.class.search_for_id self.sphinx_document_id, sphinx_index_name(suffix)
     end
@@ -345,7 +350,7 @@ module ThinkingSphinx
     # @return [Integer] Unique record id for the purposes of Sphinx.
     # 
     def primary_key_for_sphinx
-      @primary_key_for_sphinx ||= read_attribute(self.class.primary_key_for_sphinx)
+      read_attribute(self.class.primary_key_for_sphinx)
     end
     
     def sphinx_document_id

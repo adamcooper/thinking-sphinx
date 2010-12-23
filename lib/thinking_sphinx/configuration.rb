@@ -53,15 +53,16 @@ module ThinkingSphinx
       mysql_ssl_ca sql_range_step sql_query_pre sql_query_post
       sql_query_killlist sql_ranged_throttle sql_query_post_index unpack_zlib
       unpack_mysqlcompress unpack_mysqlcompress_maxsize )
-
-    IndexOptions  = %w( charset_table charset_type charset_dictpath docinfo
-      enable_star exceptions html_index_attrs html_remove_elements html_strip
-      index_exact_words ignore_chars inplace_docinfo_gap inplace_enable
-      inplace_hit_gap inplace_reloc_factor inplace_write_factor min_infix_len
-      min_prefix_len min_stemming_len min_word_len mlock morphology ngram_chars
-      ngram_len ondisk_dict overshort_step phrase_boundary phrase_boundary_step
-      preopen stopwords stopwords_step wordforms )
-
+    
+    IndexOptions  = %w( blend_chars charset_table charset_type charset_dictpath
+      docinfo enable_star exceptions expand_keywords hitless_words
+      html_index_attrs html_remove_elements html_strip index_exact_words
+      ignore_chars inplace_docinfo_gap inplace_enable inplace_hit_gap
+      inplace_reloc_factor inplace_write_factor min_infix_len min_prefix_len
+      min_stemming_len min_word_len mlock morphology ngram_chars ngram_len
+      ondisk_dict overshort_step phrase_boundary phrase_boundary_step preopen
+      stopwords stopwords_step wordforms )
+    
     CustomOptions = %w( disable_range )
 
     attr_accessor :searchd_file_path, :allow_star, :database_yml_file,
@@ -138,14 +139,8 @@ module ThinkingSphinx
     def environment
       self.class.environment
     end
-
-    # Generate the config file for Sphinx by using all the settings defined and
-    # looping through all the models with indexes to build the relevant
-    # indexer and searchd configuration, and sources and indexes details.
-    #
-    def build(file_path=nil)
-      file_path ||= "#{self.config_file}"
-
+    
+    def generate
       @configuration.indexes.clear
 
       ThinkingSphinx.context.indexed_models.each do |model|
@@ -153,7 +148,17 @@ module ThinkingSphinx
         model.define_indexes
         @configuration.indexes.concat model.to_riddle
       end
-
+    end
+    
+    # Generate the config file for Sphinx by using all the settings defined and
+    # looping through all the models with indexes to build the relevant
+    # indexer and searchd configuration, and sources and indexes details.
+    #
+    def build(file_path=nil)
+      file_path ||= "#{self.config_file}"
+      
+      generate
+      
       open(file_path, "w") do |file|
         file.write @configuration.render
       end
@@ -232,10 +237,13 @@ module ThinkingSphinx
     def indexer_binary_name=(name)
       @controller.indexer_binary_name = name
     end
-
+    
+    attr_accessor :timeout
+    
     def client
       client = Riddle::Client.new address, port
       client.max_matches = configuration.searchd.max_matches || 1000
+      client.timeout = timeout || 0
       client
     end
 

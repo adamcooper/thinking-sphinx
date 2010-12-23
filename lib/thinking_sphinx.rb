@@ -9,6 +9,7 @@ require 'thinking_sphinx/property'
 require 'thinking_sphinx/active_record'
 require 'thinking_sphinx/association'
 require 'thinking_sphinx/attribute'
+require 'thinking_sphinx/bundled_search'
 require 'thinking_sphinx/configuration'
 require 'thinking_sphinx/context'
 require 'thinking_sphinx/excerpter'
@@ -27,9 +28,11 @@ require 'thinking_sphinx/adapters/abstract_adapter'
 require 'thinking_sphinx/adapters/mysql_adapter'
 require 'thinking_sphinx/adapters/postgresql_adapter'
 
-require 'thinking_sphinx/railtie'
+require 'thinking_sphinx/railtie' if defined?(Rails)
 
 module ThinkingSphinx
+  mattr_accessor :database_adapter
+  
   # A ConnectionError will get thrown when a connection to Sphinx can't be
   # made.
   class ConnectionError < StandardError
@@ -41,6 +44,16 @@ module ThinkingSphinx
     attr_accessor :ids
     def initialize(ids)
       self.ids = ids
+    end
+  end
+  
+  # A SphinxError occurs when Sphinx responds with an error due to problematic
+  # queries or indexes.
+  class SphinxError < RuntimeError
+    attr_accessor :results
+    def initialize(message = nil, results = nil)
+      super(message)
+      self.results = results
     end
   end
   
